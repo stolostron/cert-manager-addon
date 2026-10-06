@@ -1,0 +1,12 @@
+# GOTCHA: Do NOT manually create this resource when using installStrategy.type: Placements
+# GOTCHA: The addon-manager lifecycle annotation auto-creates these per PlacementDecision
+# GOTCHA: This file is for reference only - showing what gets auto-generated
+# GOTCHA: Manual ManagedClusterAddOns are only needed for installStrategy.type: Manual
+apiVersion: addon.open-cluster-management.io/v1alpha1
+kind: ManagedClusterAddOn
+metadata:
+  name: cert-manager-addon
+  # GOTCHA: namespace must be the managed cluster name (auto-populated by addon-manager)
+  namespace: "{{cluster-name}}"
+spec:
+  installNamespace: open-cluster-management-agent-addon

@@ -1,0 +1,26 @@
+# GOTCHA: Tolerations in Placement use effect "NoSelect" (NOT "NoSchedule" or "NoExecute")
+# GOTCHA: This is different from Pod tolerations - it's for cluster taint matching, not pod scheduling
+# GOTCHA: Ensure target clusters have matching labels in predicates section
+# GOTCHA: If no clusters match, ClusterManagementAddOn will create zero ManagedClusterAddOns
+apiVersion: cluster.open-cluster-management.io/v1beta1
+kind: Placement
+metadata:
+  name: cert-manager-placement
+  namespace: open-cluster-management-global-set
+spec:
+  # Select clusters explicitly opted in for cert-manager
+  # GOTCHA: Change these label selectors to match your actual managed cluster labels
+  # To opt in a cluster: oc label managedcluster <cluster-name> cert-manager=enabled
+  predicates:
+    - requiredClusterSelector:
+        labelSelector:
+          matchLabels:
+            cert-manager: enabled
+
+  # Optional: Tolerate cluster taints
+  # GOTCHA: Placement tolerations use different effects than Pod tolerations
+  # GOTCHA: Valid values for effect: NoSelect, PreferNoSelect, NoSelectIfNew (NOT NoSchedule/NoExecute)
+  tolerations:
+    - key: cluster.open-cluster-management.io/unreachable
+      operator: Exists
+      effect: NoSelect

@@ -1,0 +1,82 @@
+# GOTCHA: This template gets deployed TO each managed cluster (not on hub)
+# GOTCHA: Must be referenced in ClusterManagementAddOn.spec.supportedConfigs.defaultConfig
+# GOTCHA: Template variables like {{.ClusterName}} are substituted at deployment time
+# GOTCHA: Variables in metadata.namespace will cause OLM Subscription failures
+# GOTCHA: Namespace fields MUST be hardcoded strings (no variables allowed in metadata.namespace)
+# GOTCHA: The addon framework overrides ALL namespaced resources to the addon's installNamespace
+apiVersion: addon.open-cluster-management.io/v1alpha1
+kind: AddOnTemplate
+metadata:
+  name: cert-manager-addon-template
+spec:
+  addonName: cert-manager-addon
+  agentSpec:
+    workload:
+      manifests:
+        # 1. Aggregating ClusterRole — grants the work agent permissions for all ManifestWork resources
+        # GOTCHA: Must come FIRST in the manifest list so the RBAC is in place before other resources
+        # GOTCHA: The label aggregate-to-work: "true" makes this aggregate into the work agent's permissions
+        - apiVersion: rbac.authorization.k8s.io/v1
+          kind: ClusterRole
+          metadata:
+            name: open-cluster-management:cert-manager-addon:agent
+            labels:
+              open-cluster-management.io/aggregate-to-work: "true"
+          rules:
+            - apiGroups: ["operators.coreos.com"]
+              resources: ["operatorgroups", "subscriptions"]
+              verbs: ["get", "list", "watch", "create", "update", "delete"]
+            - apiGroups: [""]
+              resources: ["namespaces"]
+              verbs: ["get", "list", "watch", "create", "update", "delete"]
+
+        # 2. Namespace for addon workloads on managed cluster
+        # GOTCHA: The addon framework overrides this to the installNamespace
+        - apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: open-cluster-management-agent-addon
+            labels:
+              openshift.io/cluster-monitoring: "true"
+
+        # 3. OperatorGroup required for OLM to process Subscriptions in this namespace
+        # GOTCHA: Without an OperatorGroup, OLM will never resolve the InstallPlan
+        # GOTCHA: openshift-operators has a default OperatorGroup, but addon namespaces do not
+        - apiVersion: operators.coreos.com/v1
+          kind: OperatorGroup
+          metadata:
+            name: cert-manager-addon-og
+            namespace: open-cluster-management-agent-addon
+          spec:
+            targetNamespaces: []
+
+        # 4. Operator Subscription (installs cert-manager via OLM)
+        # GOTCHA: namespace gets overridden by addon framework to installNamespace
+        # GOTCHA: Verify the operator package name exists in catalog: oc get packagemanifest openshift-cert-manager-operator
+        - apiVersion: operators.coreos.com/v1alpha1
+          kind: Subscription
+          metadata:
+            name: openshift-cert-manager-operator
+            namespace: open-cluster-management-agent-addon
+            labels:
+              operators.coreos.com/cert-manager-operator.open-cluster-management-agent-addon: ""
+          spec:
+            channel: stable-v1
+            name: openshift-cert-manager-operator
+            source: redhat-operators
+            sourceNamespace: openshift-marketplace
+            installPlanApproval: Automatic
+
+      manifestConfigs:
+        - resourceIdentifier:
+            group: operators.coreos.com
+            resource: subscriptions
+            name: openshift-cert-manager-operator
+            namespace: open-cluster-management-agent-addon
+          feedbackRules:
+            - type: JSONPaths
+              jsonPaths:
+                - name: installedCSV
+                  path: .status.installedCSV
+                - name: state
+                  path: .status.state

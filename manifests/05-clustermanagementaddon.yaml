@@ -1,0 +1,41 @@
+# GOTCHA: AddOnTemplate must be listed in supportedConfigs.defaultConfig (or no manifests will deploy)
+# GOTCHA: Placement must exist in the referenced namespace before applying this
+# GOTCHA: The addon-manager lifecycle annotation auto-creates ManagedClusterAddOns (do not create them manually)
+apiVersion: addon.open-cluster-management.io/v1alpha1
+kind: ClusterManagementAddOn
+metadata:
+  name: cert-manager-addon
+  annotations:
+    # GOTCHA: This annotation enables automatic ManagedClusterAddOn creation per placement decision
+    addon.open-cluster-management.io/lifecycle: "addon-manager"
+spec:
+  addOnMeta:
+    displayName: "cert-manager Add-on"
+    description: "Deploys OpenShift cert-manager operator to managed clusters via ACM for fleet-wide certificate lifecycle management"
+
+  # GOTCHA: For Template-based addons, health is automatically determined by ManifestWork feedback
+  # No addOnConfiguration needed — this field does not exist in the CMA v1beta1 spec
+  # GOTCHA: Do NOT use addOnConfiguration for Template-based addons (deprecated pattern)
+
+  # Enable placement-based installation for multi-cluster rollout
+  # GOTCHA: installStrategy.type must be "Placements" (not "Manual") for automatic rollout
+  installStrategy:
+    type: Placements
+    placements:
+      # GOTCHA: This placement name and namespace must match an existing Placement resource
+      - name: cert-manager-placement
+        namespace: open-cluster-management-global-set
+        rolloutStrategy:
+          type: Progressive
+          progressive:
+            maxConcurrency: 2
+            minSuccessTime: 5m
+            progressDeadline: 10m
+
+  # GOTCHA: AddOnTemplate MUST be in supportedConfigs for manifests to deploy
+  supportedConfigs:
+    - group: addon.open-cluster-management.io
+      resource: addontemplates
+      # GOTCHA: defaultConfig.name must match the AddOnTemplate metadata.name exactly
+      defaultConfig:
+        name: cert-manager-addon-template

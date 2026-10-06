@@ -1,0 +1,10 @@
+# GOTCHA: Create this BEFORE any other resources
+# GOTCHA: This is where Placement and AddOnDeploymentConfig must live
+# GOTCHA: AddOnTemplate is cluster-scoped and does NOT live in a namespace
+# GOTCHA: The namespace name must match the namespace referenced in other resources
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: open-cluster-management-global-set
+  labels:
+    openshift.io/cluster-monitoring: "true"

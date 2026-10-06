@@ -1,0 +1,48 @@
+name: Manifest Lint & Validation
+
+on:
+  pull_request:
+    paths:
+      - 'manifests/**'
+      - '.github/workflows/manifest-lint.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'manifests/**'
+
+jobs:
+  yaml-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install yamllint
+        run: pip install yamllint
+
+      - name: Lint YAML manifests
+        run: yamllint -d relaxed manifests/*.yaml
+
+  kube-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Validate core K8s manifests (dry-run client)
+        run: |
+          for f in manifests/01-namespace.yaml; do
+            echo "Validating $f..."
+            kubectl apply --dry-run=client -f "$f" 2>&1 || exit 1
+          done
+
+      - name: Install PyYAML
+        run: pip install pyyaml
+
+      - name: Validate all manifests (YAML syntax)
+        run: |
+          for f in manifests/03-placement.yaml manifests/04-addontemplate.yaml manifests/05-clustermanagementaddon.yaml; do
+            echo "Checking YAML syntax: $f..."
+            python3 -c "import yaml, sys; yaml.safe_load(open(sys.argv[1]))" "$f" || exit 1
+          done
